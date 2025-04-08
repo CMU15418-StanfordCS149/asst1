@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
 
     double minSerial = 1e30;
     for (int i = 0; i < 5; ++i) {
-       memset(output_serial, 0, width * height * sizeof(int));
+        memset(output_serial, 0, width * height * sizeof(int));
         double startTime = CycleTimer::currentSeconds();
         mandelbrotSerial(x0, y0, x1, y1, width, height, 0, height, maxIterations, output_serial);
         double endTime = CycleTimer::currentSeconds();
@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
 
     double minThread = 1e30;
     for (int i = 0; i < 5; ++i) {
-      memset(output_thread, 0, width * height * sizeof(int));
+        memset(output_thread, 0, width * height * sizeof(int));
         double startTime = CycleTimer::currentSeconds();
         mandelbrotThread(numThreads, x0, y0, x1, y1, width, height, maxIterations, output_thread);
         double endTime = CycleTimer::currentSeconds();

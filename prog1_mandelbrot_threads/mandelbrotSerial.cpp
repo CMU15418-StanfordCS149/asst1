@@ -37,6 +37,7 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <stdio.h>
 
 static inline int mandel(float c_re, float c_im, int count)
 {
