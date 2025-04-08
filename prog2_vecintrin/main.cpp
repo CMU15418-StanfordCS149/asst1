@@ -24,6 +24,7 @@ int main(int argc, char * argv[]) {
   int N = 16;
   bool printLog = false;
 
+  // 1. 解析命令行参数
   // parse commandline options ////////////////////////////////////////////
   int opt;
   static struct option long_options[] = {
@@ -54,23 +55,27 @@ int main(int argc, char * argv[]) {
   }
 
 
+  // 2. 初始化矢量
   float* values = new float[N+VECTOR_WIDTH];
   int* exponents = new int[N+VECTOR_WIDTH];
   float* output = new float[N+VECTOR_WIDTH];
   float* gold = new float[N+VECTOR_WIDTH];
   initValue(values, exponents, output, gold, N);
 
+  // 3. 执行 clampedExp 的串行版本和矢量化版本
   clampedExpSerial(values, exponents, gold, N);
   clampedExpVector(values, exponents, output, N);
 
   //absSerial(values, gold, N);
   //absVector(values, output, N);
 
+  // 4. 对比串行版本和矢量版本的结果，如果打开了日志，那么打印日志
   printf("\e[1;31mCLAMPED EXPONENT\e[0m (required) \n");
   bool clampedCorrect = verifyResult(values, exponents, output, gold, N);
   if (printLog) CS149Logger.printLog();
   CS149Logger.printStats();
 
+  // 5. 根据 step4 的对比结果打印最终结果给用户
   printf("************************ Result Verification *************************\n");
   if (!clampedCorrect) {
     printf("@@@ Failed!!!\n");
