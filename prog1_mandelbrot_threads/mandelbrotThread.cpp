@@ -27,6 +27,7 @@ extern void mandelbrotSerial(
 // workerThreadStart --
 //
 // Thread entrypoint.
+// 每个线程应该做的事情，这里目前没有实现
 void workerThreadStart(WorkerArgs * const args) {
 
     // TODO FOR CS149 STUDENTS: Implement the body of the worker
@@ -51,16 +52,19 @@ void mandelbrotThread(
 {
     static constexpr int MAX_THREADS = 32;
 
+    // 查看使用线程数是否超过最大限制
     if (numThreads > MAX_THREADS)
     {
         fprintf(stderr, "Error: Max allowed threads is %d\n", MAX_THREADS);
         exit(1);
     }
 
+    // 创建线程对象，但目前还没有线程实例
     // Creates thread objects that do not yet represent a thread.
     std::thread workers[MAX_THREADS];
     WorkerArgs args[MAX_THREADS];
 
+    // 初始化所有线程的参数
     for (int i=0; i<numThreads; i++) {
       
         // TODO FOR CS149 STUDENTS: You may or may not wish to modify
@@ -79,6 +83,7 @@ void mandelbrotThread(
         args[i].threadId = i;
     }
 
+    // 启动所有线程，除了线程0，每个线程都使用 args[i] 参数去执行函数 workerThreadStart
     // Spawn the worker threads.  Note that only numThreads-1 std::threads
     // are created and the main application thread is used as a worker
     // as well.
@@ -86,8 +91,10 @@ void mandelbrotThread(
         workers[i] = std::thread(workerThreadStart, &args[i]);
     }
     
+    // 线程0也执行 workerThreadStart
     workerThreadStart(&args[0]);
 
+    // 等待所有线程结束
     // join worker threads
     for (int i=1; i<numThreads; i++) {
         workers[i].join();
