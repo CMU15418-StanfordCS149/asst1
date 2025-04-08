@@ -30,27 +30,24 @@ extern void mandelbrotSerial(
 // 每个线程应该做的事情，这里目前没有实现
 void workerThreadStart(WorkerArgs * const args) {
 
-    // TODO FOR CS149 STUDENTS: Implement the body of the worker
-    // thread here. Each thread should make a call to mandelbrotSerial()
-    // to compute a part of the output image.  For example, in a
-    // program that uses two threads, thread 0 could compute the top
-    // half of the image and thread 1 could compute the bottom half.
+    // 计算每个线程应该负责的平均行数
+    int thread_row_number = args->height / args->numThreads;
 
-    // 1. 修改起始代码，使用两个处理器并行化曼德布罗特集的生成。具体来说，在线程 0 中计算图像的上半部分，
-    // 在线程 1 中计算图像的下半部分。这种问题分解类型被称为空间分解，因为图像的不同空间区域由不同的处理器计算。
-    if(0 == args->threadId) {
-
+    // 最后一个线程处理除不尽的行数
+    if(args->threadId == args->numThreads-1) {
         mandelbrotSerial(args->x0, args->y0, args->x1, args->y1, 
-            args->width, args->height, 0, args->height/2,
+            args->width, args->height, 
+            args->threadId * thread_row_number, 
+            thread_row_number + (args->height % args->numThreads), 
             args->maxIterations, args->output);
-
     }
+    // 其它线程处理负责的平均行数
     else {
-
         mandelbrotSerial(args->x0, args->y0, args->x1, args->y1, 
-            args->width, args->height, args->height/2, args->height/2,
+            args->width, args->height, 
+            args->threadId * thread_row_number, 
+            thread_row_number, 
             args->maxIterations, args->output);
-
     }
 
     printf("Hello world from thread %d\n", args->threadId);
