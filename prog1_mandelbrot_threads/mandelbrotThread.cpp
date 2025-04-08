@@ -30,6 +30,8 @@ extern void mandelbrotSerial(
 // 每个线程应该做的事情，这里目前没有实现
 void workerThreadStart(WorkerArgs * const args) {
 
+    double startTime = CycleTimer::currentSeconds();
+
     // 计算每个线程应该负责的平均行数
     int thread_row_number = args->height / args->numThreads;
 
@@ -50,7 +52,9 @@ void workerThreadStart(WorkerArgs * const args) {
             args->maxIterations, args->output);
     }
 
-    printf("Hello world from thread %d\n", args->threadId);
+    double endTime = CycleTimer::currentSeconds();
+
+    printf("Hello world from thread %d, elapsed time = %lf\n", args->threadId, endTime - startTime);
 
 }
 
