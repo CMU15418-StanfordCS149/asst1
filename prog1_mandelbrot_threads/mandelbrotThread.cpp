@@ -22,6 +22,23 @@ extern void mandelbrotSerial(
     int maxIterations,
     int output[]);
 
+static inline int mandel(float c_re, float c_im, int count)
+{
+    float z_re = c_re, z_im = c_im;
+    int i;
+    for (i = 0; i < count; ++i) {
+
+        if (z_re * z_re + z_im * z_im > 4.f)
+            break;
+
+        float new_re = z_re*z_re - z_im*z_im;
+        float new_im = 2.f * z_re * z_im;
+        z_re = c_re + new_re;
+        z_im = c_im + new_im;
+    }
+
+    return i;
+}
 
 //
 // workerThreadStart --
@@ -30,31 +47,22 @@ extern void mandelbrotSerial(
 // 每个线程应该做的事情，这里目前没有实现
 void workerThreadStart(WorkerArgs * const args) {
 
-    double startTime = CycleTimer::currentSeconds();
+    // 只要把任务切得细一点，交叉分配就可以了
+    float dx = (args->x1 - args->x0) / args->width;
+    float dy = (args->y1 - args->y0) / args->height;
 
-    // 计算每个线程应该负责的平均行数
-    int thread_row_number = args->height / args->numThreads;
+    for (int j = args->threadId; j < args->height; j += args->numThreads) {
+        for (int i = 0; i < args->width; ++i) {
+            float x = args->x0 + i * dx;
+            float y = args->y0 + j * dy;
 
-    // 最后一个线程处理除不尽的行数
-    if(args->threadId == args->numThreads-1) {
-        mandelbrotSerial(args->x0, args->y0, args->x1, args->y1, 
-            args->width, args->height, 
-            args->threadId * thread_row_number, 
-            thread_row_number + (args->height % args->numThreads), 
-            args->maxIterations, args->output);
-    }
-    // 其它线程处理负责的平均行数
-    else {
-        mandelbrotSerial(args->x0, args->y0, args->x1, args->y1, 
-            args->width, args->height, 
-            args->threadId * thread_row_number, 
-            thread_row_number, 
-            args->maxIterations, args->output);
+            int index = (j * args->width + i);
+
+            args->output[index] = mandel(x, y, args->maxIterations);
+        }
     }
 
-    double endTime = CycleTimer::currentSeconds();
-
-    printf("Hello world from thread %d, elapsed time = %lf\n", args->threadId, endTime - startTime);
+    printf("Hello world from thread %d\n", args->threadId);
 
 }
 
