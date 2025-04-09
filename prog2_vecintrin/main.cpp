@@ -246,7 +246,6 @@ void clampedExpSerial(float* values, int* exponents, float* output, int N) {
 }
 
 void clampedExpVector(float* values, int* exponents, float* output, int N) {
-
   //
   // CS149 STUDENTS TODO: Implement your vectorized version of
   // clampedExpSerial() here.
@@ -254,7 +253,69 @@ void clampedExpVector(float* values, int* exponents, float* output, int N) {
   // Your solution should work for any value of
   // N and VECTOR_WIDTH, not just when VECTOR_WIDTH divides N
   //
-  
+  __cs149_vec_float x;
+  __cs149_vec_int   y;
+  __cs149_vec_float result;
+  __cs149_vec_int count;
+  __cs149_mask maskAll, maskFlag_if, maskFlag_while, maskFlag_if_2;
+
+  // 全零矢量
+  __cs149_vec_int   zero_int   = _cs149_vset_int(0);
+  __cs149_vec_float zero_float = _cs149_vset_float(0.f);
+  // 全1矢量
+  __cs149_vec_int   one_int    = _cs149_vset_int(1);
+  // 全 9.999999f 矢量
+  __cs149_vec_float nine_float = _cs149_vset_float(9.999999f);
+  // 全 1.f 矢量
+  __cs149_vec_float one_float  = _cs149_vset_float(1.f);
+
+  // 全1掩码
+  maskAll = _cs149_init_ones();
+
+  // 对可以做并行的部分做并行
+  int i;
+  for (i=0; i+VECTOR_WIDTH < N; i+=VECTOR_WIDTH) {
+
+    // 用来处理分支判断语句的掩码，初始化为全 0
+    maskFlag_if = _cs149_init_ones(0);
+    // 用来处理循环判断语句的掩码，初始化为全 0
+    maskFlag_while = _cs149_init_ones(0);
+    // 用来处理内部分支判断语句的掩码，初始化为全 0
+    maskFlag_if_2 = _cs149_init_ones(0);
+
+    _cs149_vload_float(x, values+i, maskAll);                               // float x = values[i];
+    _cs149_vload_int(y, exponents+i, maskAll);                              // int y = exponents[i];
+
+    _cs149_veq_int(maskFlag_if, y, zero_int, maskAll);                      // if (y == 0) {
+
+    _cs149_vadd_float(result, zero_float, one_float, maskFlag_if);          //   output[i] = 1.f;
+
+    // Inverse maskFlag_if to generate "else" mask
+    maskFlag_if = _cs149_mask_not(maskFlag_if);                             // } else {
+
+    _cs149_vadd_float(result, zero_float, x, maskFlag_if);                  //   float result = x;
+
+    _cs149_vsub_int(count, y, one_int, maskFlag_if);                        //   int count = y - 1;
+
+    _cs149_vgt_int(maskFlag_while, count, zero_int, maskFlag_if);           
+    while(_cs149_cntbits(maskFlag_while)) {                                 //   while(count > 0) {
+      _cs149_vmult_float(result, result, x, maskFlag_while);                //     result *= x;
+      _cs149_vsub_int(count, count, one_int, maskFlag_while);               //     count--; 
+      // 进行循环条件判断之前需要先更新 maskFlag_while
+      _cs149_vgt_int(maskFlag_while, count, zero_int, maskFlag_while);           
+    }                                                                       //   }
+
+    _cs149_vgt_float(maskFlag_if_2, result, nine_float, maskFlag_if);       //   if (result > 9.999999f) {
+    _cs149_vadd_float(result, zero_float, nine_float, maskFlag_if_2);       //     result = 9.999999f;
+                                                                            //   }
+    // Write results back to memory
+    _cs149_vstore_float(output+i, result, maskAll);                         // output[i] = result;
+
+  }
+
+  // 最后宽度不足以做 SIMD 优化的数据做串行计算
+  clampedExpSerial(values+i, exponents+i, output+i, N-i);
+
 }
 
 // returns the sum of all elements in values
