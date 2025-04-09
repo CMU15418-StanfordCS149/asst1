@@ -83,6 +83,7 @@ int main(int argc, char * argv[]) {
     printf("Passed!!!\n");
   }
 
+  // 6. 打印 ARRAY SUM 的结果
   printf("\n\e[1;31mARRAY SUM\e[0m (bonus) \n");
   if (N % VECTOR_WIDTH == 0) {
     float sumGold = arraySumSerial(values, N);
@@ -274,7 +275,7 @@ void clampedExpVector(float* values, int* exponents, float* output, int N) {
 
   // 对可以做并行的部分做并行
   int i;
-  for (i=0; i+VECTOR_WIDTH < N; i+=VECTOR_WIDTH) {
+  for (i=0; i+VECTOR_WIDTH <= N; i+=VECTOR_WIDTH) {
 
     // 用来处理分支判断语句的掩码，初始化为全 0
     maskFlag_if = _cs149_init_ones(0);
@@ -336,11 +337,21 @@ float arraySumVector(float* values, int N) {
   //
   // CS149 STUDENTS TODO: Implement your vectorized version of arraySumSerial here
   //
+  __cs149_vec_float sum = _cs149_vset_float(0.f);
+  __cs149_vec_float vector_values;
+  __cs149_mask maskAll = _cs149_init_ones();
+  float output = 0.f;
   
-  for (int i=0; i<N; i+=VECTOR_WIDTH) {
-
+  for (int i=0; i+VECTOR_WIDTH <= N; i+=VECTOR_WIDTH) {
+    _cs149_vload_float(vector_values, values+i, maskAll);               // x = values[i];
+    _cs149_vadd_float(sum, sum, vector_values, maskAll);
+  }
+  int i = VECTOR_WIDTH;
+  while (i /= 2) {
+    _cs149_hadd_float(sum, sum);
+    _cs149_interleave_float(sum, sum);
   }
 
-  return 0.0;
+  return sum.value[0];
 }
 
