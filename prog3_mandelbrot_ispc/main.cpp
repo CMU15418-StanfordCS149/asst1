@@ -71,17 +71,21 @@ void usage(const char* progname) {
 
 int main(int argc, char** argv) {
 
+    // 图宽，图长，每个像素点的最大迭代次数
     const unsigned int width = 1200;
     const unsigned int height = 800;
     const int maxIterations = 256;
 
+    // 和 Prog1 一样的初始化动作
     float x0 = -2;
     float x1 = 1;
     float y0 = -1;
     float y1 = 1;
 
+    // 一个 flag，决定是否使用 ISPC 实现
     bool useTasks = false;
 
+    // 解析命令行选项
     // parse commandline options ////////////////////////////////////////////
     int opt;
     static struct option long_options[] = {
@@ -90,7 +94,6 @@ int main(int argc, char** argv) {
         {"help",  0, 0, '?'},
         {0 ,0, 0, 0}
     };
-
     while ((opt = getopt_long(argc, argv, "tv:?", long_options, NULL)) != EOF) {
 
         switch (opt) {
@@ -120,13 +123,14 @@ int main(int argc, char** argv) {
     }
     // end parsing of commandline options
 
+    // 初始化结果数组
     int *output_serial = new int[width*height];
     int *output_ispc = new int[width*height];
     int *output_ispc_tasks = new int[width*height];
-
     for (unsigned int i = 0; i < width * height; ++i)
         output_serial[i] = 0;
 
+    // 运行三次串行版本，统计运行时长，并且收集串行版本跑出来的结果
     //
     // Run the serial implementation. Teport the minimum time of three
     // runs for robust timing.
@@ -142,10 +146,12 @@ int main(int argc, char** argv) {
     printf("[mandelbrot serial]:\t\t[%.3f] ms\n", minSerial * 1000);
     writePPMImage(output_serial, width, height, "mandelbrot-serial.ppm", maxIterations);
 
+    // 重置 output_ispc
     // Clear out the buffer
     for (unsigned int i = 0; i < width * height; ++i)
         output_ispc[i] = 0;
 
+    // 运行 mandelbrot_ispc 三次，收集运行时长和结果
     //
     // Compute the image using the ispc implementation
     //
@@ -160,7 +166,7 @@ int main(int argc, char** argv) {
     printf("[mandelbrot ispc]:\t\t[%.3f] ms\n", minISPC * 1000);
     writePPMImage(output_ispc, width, height, "mandelbrot-ispc.ppm", maxIterations);
 
-
+    // 对比运行结果
     if (! verifyResult (output_serial, output_ispc, width, height)) {
         printf ("Error : ISPC output differs from sequential output\n");
 
@@ -171,11 +177,13 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // 重置 output_ispc_tasks
     // Clear out the buffer
     for (unsigned int i = 0; i < width * height; ++i) {
         output_ispc_tasks[i] = 0;
     }
 
+    // 若 --task 选项存在，那么运行一次 ispc_task
     double minTaskISPC = 1e30;
     if (useTasks) {
         //
@@ -205,7 +213,6 @@ int main(int argc, char** argv) {
     delete[] output_serial;
     delete[] output_ispc;
     delete[] output_ispc_tasks;
-
 
     return 0;
 }
