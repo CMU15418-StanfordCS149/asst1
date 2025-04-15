@@ -240,6 +240,34 @@ void kMeansThread(double *data, double *clusterCentroids, int *clusterAssignment
 }
 
 /**
+ * Assigns each data point to its "closest" cluster centroid.
+ */
+void computeAssignmentsParallel(WorkerArgs *const args) {
+  double *minDist = new double[args->M];
+  
+  // Initialize arrays
+  for (int m =0; m < args->M; m++) {
+    minDist[m] = 1e30;
+    args->clusterAssignments[m] = -1;
+  }
+
+  // Assign datapoints to closest centroids
+  for (int k = args->start; k < args->end; k++) {
+    for (int m = 0; m < args->M; m++) {
+      double d = dist(&args->data[m * args->N],
+                      &args->clusterCentroids[k * args->N], args->N);
+      // minDist[] 和 args->clusterAssignments[m] 的更新需要加锁
+      if (d < minDist[m]) {
+        minDist[m] = d;
+        args->clusterAssignments[m] = k;
+      }
+    }
+  }
+
+  free(minDist);
+}
+
+/**
  * Computes the K-Means algorithm, using std::thread to parallelize the work.
  *
  * @param data Pointer to an array of length M*N representing the M different N 
@@ -300,7 +328,7 @@ void kMeansThreadParallel(double *data, double *clusterCentroids, int *clusterAs
     args.end = K;
 
     startTime = CycleTimer::currentSeconds();
-    computeAssignments(&args);
+    computeAssignmentsParallel(&args);
     endTime = CycleTimer::currentSeconds();
     overhead[0] += (endTime - startTime);
 
