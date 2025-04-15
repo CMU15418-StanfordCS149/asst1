@@ -18,6 +18,10 @@ typedef struct {
   int *clusterAssignments;
   double *currCost;
   int M, N, K;
+  int numThreads;
+  int threadID;
+  int Mstart;
+  int Mend;
 } WorkerArgs;
 
 
@@ -246,14 +250,14 @@ void computeAssignmentsParallel(WorkerArgs *const args) {
   double *minDist = new double[args->M];
   
   // Initialize arrays
-  for (int m =0; m < args->M; m++) {
+  for (int m=args->Mstart; m < args->Mend; m++) {
     minDist[m] = 1e30;
     args->clusterAssignments[m] = -1;
   }
 
   // Assign datapoints to closest centroids
-  for (int k = args->start; k < args->end; k++) {
-    for (int m = 0; m < args->M; m++) {
+  for (int m = args->Mstart; m < args->Mend; m++) {
+    for (int k = args->start; k < args->end; k++) {
       double d = dist(&args->data[m * args->N],
                       &args->clusterCentroids[k * args->N], args->N);
       // minDist[] 和 args->clusterAssignments[m] 的更新需要加锁
@@ -290,20 +294,30 @@ void computeAssignmentsParallel(WorkerArgs *const args) {
 void kMeansThreadParallel(double *data, double *clusterCentroids, int *clusterAssignments,
                int M, int N, int K, double epsilon) {
 
+  static constexpr int MAX_THREADS = 20;
+
   // Used to track convergence
   double *prevCost = new double[K];
   double *currCost = new double[K];
 
   // The WorkerArgs array is used to pass inputs to and return output from
   // functions.
-  WorkerArgs args;
-  args.data = data;
-  args.clusterCentroids = clusterCentroids;
-  args.clusterAssignments = clusterAssignments;
-  args.currCost = currCost;
-  args.M = M;
-  args.N = N;
-  args.K = K;
+  // 初始化所有线程的参数
+  std::thread workers[MAX_THREADS];
+  WorkerArgs args[MAX_THREADS];
+  for (int i=0; i<MAX_THREADS; i++) {
+    args[i].data = data;
+    args[i].clusterCentroids = clusterCentroids;
+    args[i].clusterAssignments = clusterAssignments;
+    args[i].currCost = currCost;
+    args[i].M = M;
+    args[i].N = N;
+    args[i].K = K;
+    args[i].numThreads = MAX_THREADS;
+    args[i].threadID = i;
+    args[i].start = 0;
+    args[i].end = K;
+  }
 
   // Initialize arrays to track cost
   for (int k = 0; k < K; k++) {
@@ -323,24 +337,38 @@ void kMeansThreadParallel(double *data, double *clusterCentroids, int *clusterAs
       prevCost[k] = currCost[k];
     }
 
-    // Setup args struct
-    args.start = 0;
-    args.end = K;
-
     startTime = CycleTimer::currentSeconds();
-    computeAssignmentsParallel(&args);
+
+    // 启动所有线程，除了线程0
+    for (int i=1; i<MAX_THREADS; i++) {
+        args[i].Mstart = (args[i].M/MAX_THREADS) * i;
+        args[i].Mend = (args[i].M/MAX_THREADS) * (i+1);
+        workers[i] = std::thread(computeAssignmentsParallel, &args[i]);
+    }
+    // 启动线程0
+    args[0].Mstart = 0;
+    args[0].Mend = args[0].M/MAX_THREADS;
+    computeAssignmentsParallel(&args[0]);
+    // 等待所有线程结束
+    for (int i=1; i<MAX_THREADS; i++) {
+        workers[i].join();
+    }
+
     endTime = CycleTimer::currentSeconds();
     overhead[0] += (endTime - startTime);
+    // printf("overhead[0] = %lf\n", overhead[0] * 1000);
 
     startTime = CycleTimer::currentSeconds();
-    computeCentroids(&args);
+    computeCentroids(&args[0]);
     endTime = CycleTimer::currentSeconds();
     overhead[1] += (endTime - startTime);
+    // printf("overhead[1] = %lf\n", overhead[1] * 1000);
 
     startTime = CycleTimer::currentSeconds();
-    computeCost(&args);
+    computeCost(&args[0]);
     endTime = CycleTimer::currentSeconds();
     overhead[2] += (endTime - startTime);
+    // printf("overhead[2] = %lf\n", overhead[2] * 1000);
 
     iter++;
   }
