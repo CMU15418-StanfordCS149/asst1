@@ -17,6 +17,11 @@ using namespace std;
 extern void kMeansThread(double *data, double *clusterCentroids,
                       int *clusterAssignments, int M, int N, int K,
                       double epsilon);
+
+extern void kMeansThreadParallel(double *data, double *clusterCentroids,
+                      int *clusterAssignments, int M, int N, int K,
+                      double epsilon);
+
 extern double dist(double *x, double *y, int nDim);
 
 // Utilities
@@ -92,40 +97,38 @@ int main() {
   readData("./data.dat", &data, &clusterCentroids, &clusterAssignments, &M, &N,
            &K, &epsilon);
 
-  // NOTE: if you want to generate your own data (for fun), you can use the
-  // below code
-  /*
-  M = 1e6;
-  N = 100;
-  K = 3;
-  epsilon = 0.1;
+  // // NOTE: if you want to generate your own data (for fun), you can use the
+  // // below code
+  // M = 1e6;
+  // N = 100;
+  // K = 3;
+  // epsilon = 0.1;
 
-  data = new double[M * N];
-  clusterCentroids = new double[K * N];
-  clusterAssignments = new int[M];
+  // data = new double[M * N];
+  // clusterCentroids = new double[K * N];
+  // clusterAssignments = new int[M];
 
-  // Initialize data
-  initData(data, M, N);
-  initCentroids(clusterCentroids, K, N);
+  // // Initialize data
+  // initData(data, M, N);
+  // initCentroids(clusterCentroids, K, N);
 
-  // Initialize cluster assignments
-  for (int m = 0; m < M; m++) {
-    double minDist = 1e30;
-    int bestAssignment = -1;
-    for (int k = 0; k < K; k++) {
-      double d = dist(&data[m * N], &clusterCentroids[k * N], N);
-      if (d < minDist) {
-        minDist = d;
-        bestAssignment = k;
-      }
-    }
-    clusterAssignments[m] = bestAssignment;
-  }
+  // // Initialize cluster assignments
+  // for (int m = 0; m < M; m++) {
+  //   double minDist = 1e30;
+  //   int bestAssignment = -1;
+  //   for (int k = 0; k < K; k++) {
+  //     double d = dist(&data[m * N], &clusterCentroids[k * N], N);
+  //     if (d < minDist) {
+  //       minDist = d;
+  //       bestAssignment = k;
+  //     }
+  //   }
+  //   clusterAssignments[m] = bestAssignment;
+  // }
 
-  // Uncomment to generate data file
+  // // Uncomment to generate data file
   // writeData("./data.dat", data, clusterCentroids, clusterAssignments, &M, &N,
   //           &K, &epsilon);
-  */
 
   printf("Running K-means with: M=%d, N=%d, K=%d, epsilon=%f\n", M, N,
          K, epsilon);
@@ -137,7 +140,20 @@ int main() {
   double startTime = CycleTimer::currentSeconds();
   kMeansThread(data, clusterCentroids, clusterAssignments, M, N, K, epsilon);
   double endTime = CycleTimer::currentSeconds();
-  printf("[Total Time]: %.3f ms\n", (endTime - startTime) * 1000);
+  double SerialTime = (endTime - startTime) * 1000;
+  printf("[Serial Time]: %.3f ms\n", SerialTime);
+
+  // reset data
+  readData("./data.dat", &data, &clusterCentroids, &clusterAssignments, &M, &N,
+           &K, &epsilon);
+
+  startTime = CycleTimer::currentSeconds();
+  kMeansThreadParallel(data, clusterCentroids, clusterAssignments, M, N, K, epsilon);
+  endTime = CycleTimer::currentSeconds();
+  double ParallelTime = (endTime - startTime) * 1000;
+  printf("[Parallel Time]: %.3f ms\n", ParallelTime);
+
+  printf("speedup %.2lfx\n", SerialTime/ParallelTime);
 
   // Log the end state of the algorithm
   logToFile("./end.log", SAMPLE_RATE, data, clusterAssignments,

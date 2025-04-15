@@ -53,6 +53,7 @@ static bool stoppingConditionMet(double *prevCost, double *currCost,
  * @param nDim The dimensionality (number of elements) in each data point
  *     (must be the same for x and y).
  */
+// dist 看起来很适合 SIMD 加速
 double dist(double *x, double *y, int nDim) {
   double accum = 0.0;
   for (int i = 0; i < nDim; i++) {
@@ -78,6 +79,7 @@ void computeAssignments(WorkerArgs *const args) {
     for (int m = 0; m < args->M; m++) {
       double d = dist(&args->data[m * args->N],
                       &args->clusterCentroids[k * args->N], args->N);
+      // minDist[] 和 args->clusterAssignments[m] 的更新需要加锁
       if (d < minDist[m]) {
         minDist[m] = d;
         args->clusterAssignments[m] = k;
@@ -195,6 +197,10 @@ void kMeansThread(double *data, double *clusterCentroids, int *clusterAssignment
     currCost[k] = 0.0;
   }
 
+  double overhead[3] = {0};
+  double startTime;
+  double endTime;
+
   /* Main K-Means Algorithm Loop */
   int iter = 0;
   while (!stoppingConditionMet(prevCost, currCost, epsilon, K)) {
@@ -207,12 +213,113 @@ void kMeansThread(double *data, double *clusterCentroids, int *clusterAssignment
     args.start = 0;
     args.end = K;
 
+    startTime = CycleTimer::currentSeconds();
     computeAssignments(&args);
+    endTime = CycleTimer::currentSeconds();
+    overhead[0] += (endTime - startTime);
+
+    startTime = CycleTimer::currentSeconds();
     computeCentroids(&args);
+    endTime = CycleTimer::currentSeconds();
+    overhead[1] += (endTime - startTime);
+
+    startTime = CycleTimer::currentSeconds();
     computeCost(&args);
+    endTime = CycleTimer::currentSeconds();
+    overhead[2] += (endTime - startTime);
 
     iter++;
   }
+
+  printf("overhead[0] = %lf\n", overhead[0] * 1000);
+  printf("overhead[1] = %lf\n", overhead[1] * 1000);
+  printf("overhead[2] = %lf\n", overhead[2] * 1000);
+
+  free(currCost);
+  free(prevCost);
+}
+
+/**
+ * Computes the K-Means algorithm, using std::thread to parallelize the work.
+ *
+ * @param data Pointer to an array of length M*N representing the M different N 
+ *     dimensional data points clustered. The data is layed out in a "data point
+ *     major" format, so that data[i*N] is the start of the i'th data point in 
+ *     the array. The N values of the i'th datapoint are the N values in the 
+ *     range data[i*N] to data[(i+1) * N].
+ * @param clusterCentroids Pointer to an array of length K*N representing the K 
+ *     different N dimensional cluster centroids. The data is laid out in
+ *     the same way as explained above for data.
+ * @param clusterAssignments Pointer to an array of length M representing the
+ *     cluster assignments of each data point, where clusterAssignments[i] = j
+ *     indicates that data point i is closest to cluster centroid j.
+ * @param M The number of data points to cluster.
+ * @param N The dimensionality of the data points.
+ * @param K The number of cluster centroids.
+ * @param epsilon The algorithm is said to have converged when
+ *     |currCost[i] - prevCost[i]| < epsilon for all i where i = 0, 1, ..., K-1
+ */
+void kMeansThreadParallel(double *data, double *clusterCentroids, int *clusterAssignments,
+               int M, int N, int K, double epsilon) {
+
+  // Used to track convergence
+  double *prevCost = new double[K];
+  double *currCost = new double[K];
+
+  // The WorkerArgs array is used to pass inputs to and return output from
+  // functions.
+  WorkerArgs args;
+  args.data = data;
+  args.clusterCentroids = clusterCentroids;
+  args.clusterAssignments = clusterAssignments;
+  args.currCost = currCost;
+  args.M = M;
+  args.N = N;
+  args.K = K;
+
+  // Initialize arrays to track cost
+  for (int k = 0; k < K; k++) {
+    prevCost[k] = 1e30;
+    currCost[k] = 0.0;
+  }
+
+  double overhead[3] = {0};
+  double startTime;
+  double endTime;
+
+  /* Main K-Means Algorithm Loop */
+  int iter = 0;
+  while (!stoppingConditionMet(prevCost, currCost, epsilon, K)) {
+    // Update cost arrays (for checking convergence criteria)
+    for (int k = 0; k < K; k++) {
+      prevCost[k] = currCost[k];
+    }
+
+    // Setup args struct
+    args.start = 0;
+    args.end = K;
+
+    startTime = CycleTimer::currentSeconds();
+    computeAssignments(&args);
+    endTime = CycleTimer::currentSeconds();
+    overhead[0] += (endTime - startTime);
+
+    startTime = CycleTimer::currentSeconds();
+    computeCentroids(&args);
+    endTime = CycleTimer::currentSeconds();
+    overhead[1] += (endTime - startTime);
+
+    startTime = CycleTimer::currentSeconds();
+    computeCost(&args);
+    endTime = CycleTimer::currentSeconds();
+    overhead[2] += (endTime - startTime);
+
+    iter++;
+  }
+
+  printf("overhead[0] = %lf\n", overhead[0] * 1000);
+  printf("overhead[1] = %lf\n", overhead[1] * 1000);
+  printf("overhead[2] = %lf\n", overhead[2] * 1000);
 
   free(currCost);
   free(prevCost);
